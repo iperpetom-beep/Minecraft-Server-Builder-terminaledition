@@ -11,3 +11,15 @@ env.bak/
 venv.bak/
 .vscode/
 .DS_Store
+
+# Config and secrets
+~/.mcmanager/
+.mcmanager/
+config.json
+playit*.txt
+playit*.log
+
+# Binary files (users should download playit themselves)
+playit
+#playit-server
+#playit-voice

@@ -16,7 +16,8 @@ def get_latest_neoforge_version(mc_version: str) -> str:
     versions = [v.text for v in root.findall(".//version") if v.text.startswith(f"{mc_version}.")]
     if not versions:
         raise ValueError(f"No NeoForge versions found for Minecraft {mc_version}")
-    return max(versions)
+    # Sort by build number (last component after dot) numerically to find the latest
+    return max(versions, key=lambda v: int(v.split('.')[-1]))
 
 
 def install(version: str, path: str):

@@ -20,7 +20,8 @@ def install(version: str, path: str):
     loaders = resp.json()
     if not loaders:
         raise ValueError(f"No Fabric loaders for Minecraft {version}")
-    latest_loader = loaders[0]  # assuming sorted latest first
+    # API returns sorted latest first, but ensure we have a stable loader
+    latest_loader = next((l for l in loaders if l.get("loader", {}).get("stable", False)), loaders[0])
     loader_version = latest_loader["loader"]["version"]
     # get latest installer version
     resp = requests.get("https://meta.fabricmc.net/v2/versions/installer")

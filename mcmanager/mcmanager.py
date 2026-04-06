@@ -1,6 +1,8 @@
 import os
 import subprocess
 import sys
+import signal
+import psutil
 
 from mcmanager.utils import config as cfgmod
 from mcmanager.utils import gdrive as gdrv
@@ -141,6 +143,125 @@ def select_server(cfg):
     run_server(chosen, ram, cfg)
 
 
+def get_playit_config(cfg, kind: str) -> dict:
+    """Return configured playit settings for server or voice."""
+    if kind == "server":
+        enabled = cfg.get("use_playit_server", cfg.get("use_playit", False))
+    else:
+        enabled = cfg.get("use_playit_voice", False)
+    return {
+        "enabled": enabled,
+        "tunnel_type": cfg.get(f"playit_{kind}_tunnel_type", "playit"),
+        "secret": cfg.get(f"playit_{kind}_secret", ""),
+        "secret_path": cfg.get(f"playit_{kind}_secret_path", f"~/.mcmanager/playit_{kind}_secret.txt"),
+        "log_path": cfg.get(f"playit_{kind}_log_path", f"~/.mcmanager/playit_{kind}.log"),
+        "bin_path": cfg.get(f"playit_{kind}_bin_path", "./playit"),
+        "stop_on_server_stop": cfg.get(f"playit_{kind}_stop_on_server_stop", True),
+    }
+
+
+def is_playit_running(kind: str, cfg) -> bool:
+    """Check whether the requested playit tunnel is already running."""
+    playit_cfg = get_playit_config(cfg, kind)
+    log_path = os.path.expanduser(playit_cfg["log_path"])
+    secret_path = os.path.expanduser(playit_cfg["secret_path"])
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = proc.info['cmdline']
+                if not cmdline or 'playit' not in ' '.join(cmdline) or 'start' not in ' '.join(cmdline):
+                    continue
+                if log_path and log_path in ' '.join(cmdline):
+                    return True
+                if secret_path and secret_path in ' '.join(cmdline):
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except Exception:
+        pass
+    return False
+
+
+def start_playit_tunnel(cfg, kind: str):
+    """Start a specific playit tunnel: server or voice."""
+    playit_cfg = get_playit_config(cfg, kind)
+    if not playit_cfg["enabled"]:
+        return None
+    if playit_cfg["tunnel_type"] != "playit":
+        print(f"Тип туннеля {playit_cfg['tunnel_type']} пока не поддерживается для {kind}")
+        return None
+    if is_playit_running(kind, cfg):
+        print(f"playit.gg туннель для {kind} уже запущен")
+        return None
+
+    playit_path = os.path.expanduser(playit_cfg["bin_path"])
+    if not os.path.isabs(playit_path):
+        playit_path = os.path.join(os.getcwd(), playit_path)
+    if not os.path.exists(playit_path):
+        print(f"playit binary для {kind} не найден по пути: {playit_path}")
+        return None
+
+    cmd = [playit_path, "start"]
+    secret = str(playit_cfg["secret"]).strip()
+    secret_path = os.path.expanduser(playit_cfg["secret_path"])
+    log_path = os.path.expanduser(playit_cfg["log_path"])
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    if secret_path:
+        os.makedirs(os.path.dirname(secret_path), exist_ok=True)
+        if secret:
+            with open(secret_path, "w") as f:
+                f.write(secret)
+        cmd.extend(["--secret_path", secret_path])
+    elif secret:
+        cmd.extend(["--secret", secret])
+    cmd.extend(["--log_path", log_path])
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        print(f"playit.gg туннель для {kind} запущен (PID: {process.pid})")
+        print(f"Логи: {log_path}")
+        print("Проверьте https://playit.gg для адреса")
+        return process
+    except Exception as e:
+        print(f"Ошибка запуска playit для {kind}: {e}")
+        return None
+
+
+def stop_playit_tunnel(cfg, kind: str):
+    """Stop a specific playit tunnel process based on its configuration."""
+    playit_cfg = get_playit_config(cfg, kind)
+    if playit_cfg["tunnel_type"] != "playit":
+        return
+    log_path = os.path.expanduser(playit_cfg["log_path"])
+    secret_path = os.path.expanduser(playit_cfg["secret_path"])
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = proc.info['cmdline']
+                if not cmdline or 'playit' not in ' '.join(cmdline) or 'start' not in ' '.join(cmdline):
+                    continue
+                if log_path and log_path in ' '.join(cmdline) or secret_path and secret_path in ' '.join(cmdline):
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5)
+                    except psutil.TimeoutExpired:
+                        proc.kill()
+                    print(f"playit.gg туннель для {kind} остановлен (был PID: {proc.pid})")
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except Exception as e:
+        print(f"Ошибка при остановке playit для {kind}: {e}")
+
+
+def stop_all_playit_tunnels(cfg):
+    stop_playit_tunnel(cfg, 'server')
+    stop_playit_tunnel(cfg, 'voice')
+
+
 def run_server(path: str, ram: str, cfg):
     # read loader type
     loader_file = os.path.join(path, "loader.txt")
@@ -199,15 +320,23 @@ def run_server(path: str, ram: str, cfg):
             "server.jar",
             "nogui",
         ]
-    if cfg.get("use_playit"):
-        # start playit in background
-        playit_path = os.path.join(os.getcwd(), "playit")
-        if os.path.exists(playit_path):
-            subprocess.Popen([playit_path, "start"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print("playit.gg туннель запущен. Проверьте https://playit.gg для адреса.")
-        else:
-            print("playit не найден. Скачайте с https://playit.gg")
-    subprocess.run(cmd, cwd=path)
+    server_config = get_playit_config(cfg, 'server')
+    voice_enabled = cfg.get('voicechat_enabled', False)
+    voice_config = get_playit_config(cfg, 'voice')
+    if server_config['enabled']:
+        start_playit_tunnel(cfg, 'server')
+    if voice_enabled and voice_config['enabled']:
+        start_playit_tunnel(cfg, 'voice')
+
+    try:
+        subprocess.run(cmd, cwd=path)
+    except KeyboardInterrupt:
+        print("\nСервер остановлен")
+    finally:
+        if server_config['enabled'] and server_config['stop_on_server_stop']:
+            stop_playit_tunnel(cfg, 'server')
+        if voice_enabled and voice_config['enabled'] and voice_config['stop_on_server_stop']:
+            stop_playit_tunnel(cfg, 'voice')
 
 
 def settings(cfg):
@@ -215,8 +344,12 @@ def settings(cfg):
     print(f"1) Путь к серверам: {cfg.get('servers_path')}")
     print(f"2) GDrive mount: {cfg.get('gdrive_mount')}")
     print(f"3) GDrive remote: {cfg.get('gdrive_remote')}")
-    print(f"4) Использовать playit.gg туннель: {'Да' if cfg.get('use_playit') else 'Нет'}")
-    print("5) Назад")
+    print(f"4) Использовать playit.gg для сервера: {'Да' if cfg.get('use_playit_server', cfg.get('use_playit', False)) else 'Нет'}")
+    print(f"5) VoiceChat включён: {'Да' if cfg.get('voicechat_enabled', False) else 'Нет'}")
+    print(f"6) Использовать playit.gg для VoiceChat: {'Да' if cfg.get('use_playit_voice', False) else 'Нет'}")
+    print("7) Настройки playit.gg для сервера")
+    print("8) Настройки playit.gg для VoiceChat")
+    print("9) Назад")
     choice = input("> ")
     if choice == "1":
         cfg['servers_path'] = input("Новый путь: ")
@@ -225,9 +358,70 @@ def settings(cfg):
     elif choice == "3":
         cfg['gdrive_remote'] = input("Новый удалённый: ")
     elif choice == "4":
-        cfg['use_playit'] = not cfg.get('use_playit', False)
-        print(f"playit.gg {'включен' if cfg['use_playit'] else 'выключен'}")
+        cfg['use_playit_server'] = not cfg.get('use_playit_server', cfg.get('use_playit', False))
+        print(f"playit.gg для сервера {'включен' if cfg['use_playit_server'] else 'выключен'}")
+    elif choice == "5":
+        cfg['voicechat_enabled'] = not cfg.get('voicechat_enabled', False)
+        print(f"VoiceChat {'включен' if cfg['voicechat_enabled'] else 'выключен'}")
+    elif choice == "6":
+        cfg['use_playit_voice'] = not cfg.get('use_playit_voice', False)
+        print(f"playit.gg для VoiceChat {'включен' if cfg['use_playit_voice'] else 'выключен'}")
+    elif choice == "7":
+        playit_settings(cfg, 'server')
+    elif choice == "8":
+        playit_settings(cfg, 'voice')
     save_cfg(cfg)
+
+
+def playit_settings(cfg, kind: str):
+    """Submenu for playit.gg configuration for server or voice."""
+    kind_name = "сервера" if kind == 'server' else 'VoiceChat'
+    while True:
+        print(f"\nНастройки playit.gg для {kind_name}:")
+        secret = cfg.get(f'playit_{kind}_secret', '')
+        secret_display = f"{'*' * len(secret)}" if secret else "(не задан)"
+        print(f"1) Secret key: {secret_display}")
+        print(f"2) Secret path: {cfg.get(f'playit_{kind}_secret_path', f'~/.mcmanager/playit_{kind}_secret.txt')}")
+        print(f"3) Log path: {cfg.get(f'playit_{kind}_log_path', f'~/.mcmanager/playit_{kind}.log')}")
+        print(f"4) Playit binary path: {cfg.get(f'playit_{kind}_bin_path', './playit')}")
+        print(f"5) Tunnel type: {cfg.get(f'playit_{kind}_tunnel_type', 'playit')}")
+        print(f"6) Останавливать playit при остановке сервера: {'Да' if cfg.get(f'playit_{kind}_stop_on_server_stop', True) else 'Нет'}")
+        print("7) Назад")
+        choice = input("> ")
+        if choice == "1":
+            new_secret = input("Введите secret key (или оставьте пусто): ").strip()
+            cfg[f'playit_{kind}_secret'] = new_secret
+            if new_secret:
+                print("Secret key сохранён")
+            else:
+                print("Secret key очищен")
+        elif choice == "2":
+            new_path = input("Новый путь для secret файла: ").strip()
+            if new_path:
+                cfg[f'playit_{kind}_secret_path'] = new_path
+                print(f"Secret path: {new_path}")
+        elif choice == "3":
+            new_path = input("Новый путь для логов: ").strip()
+            if new_path:
+                cfg[f'playit_{kind}_log_path'] = new_path
+                print(f"Log path: {new_path}")
+        elif choice == "4":
+            new_path = input("Путь к playit бинарнику: ").strip() or './playit'
+            cfg[f'playit_{kind}_bin_path'] = new_path
+            print(f"Playit binary path: {new_path}")
+        elif choice == "5":
+            new_type = input("Тип туннеля (playit): ").strip() or 'playit'
+            cfg[f'playit_{kind}_tunnel_type'] = new_type
+            print(f"Tunnel type: {new_type}")
+        elif choice == "6":
+            cfg[f'playit_{kind}_stop_on_server_stop'] = not cfg.get(f'playit_{kind}_stop_on_server_stop', True)
+            print(f"Остановка при остановке сервера: {'включена' if cfg[f'playit_{kind}_stop_on_server_stop'] else 'отключена'}")
+        elif choice == "7":
+            break
+        else:
+            print("Неверный выбор")
+    save_cfg(cfg)
+
 
 
 def gdrive_menu(cfg):
