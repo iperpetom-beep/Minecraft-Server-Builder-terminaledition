@@ -9,21 +9,11 @@ DEFAULT_CONFIG = {
     "gdrive_mount": "~/gdrive",
     "gdrive_remote": "gdrive",
     "use_playit": False,
-    "use_playit_server": False,
-    "playit_server_secret": "",
-    "playit_server_secret_path": "~/.mcmanager/playit_server_secret.txt",
-    "playit_server_log_path": "~/.mcmanager/playit_server.log",
-    "playit_server_bin_path": "./playit",
-    "playit_server_stop_on_server_stop": True,
-    "playit_server_tunnel_type": "playit",
-    "voicechat_enabled": False,
-    "use_playit_voice": False,
-    "playit_voice_secret": "",
-    "playit_voice_secret_path": "~/.mcmanager/playit_voice_secret.txt",
-    "playit_voice_log_path": "~/.mcmanager/playit_voice.log",
-    "playit_voice_bin_path": "./playit",
-    "playit_voice_stop_on_server_stop": True,
-    "playit_voice_tunnel_type": "playit"
+    "playit_secret": "",
+    "playit_secret_path": "~/.mcmanager/playit_secret.txt",
+    "playit_log_path": "~/.mcmanager/playit.log",
+    "playit_stop_on_server_stop": True,
+    "playit_tunnel_type": "playit"
 }
 
 

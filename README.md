@@ -1,16 +1,15 @@
 # Minecraft Server Manager
 
-Консольный менеджер серверов Minecraft. Позволяет создавать, настраивать и запускать сервера в локальной файловой системе или Google Drive, с поддержкой двойного туннелирования playit.gg для сервера и VoiceChat.
+Консольный менеджер серверов Minecraft. Позволяет создавать, настраивать и запускать сервера в локальной файловой системе или Google Drive с поддержкой туннелирования playit.gg.
 
 ## ✨ Возможности
 
 - ✅ Поддержка 6 типов серверов: Vanilla, Paper, Purpur, Fabric, Forge, NeoForge
 - ✅ Хранение на локальном диске или Google Drive (синхронизация через rclone)
-- ✅ Двойное туннелирование playit.gg (сервер + VoiceChat с разными аккаунтами)
+- ✅ Туннелирование playit.gg для доступа к серверу извне
 - ✅ Автоматический выбор Java версии (17 для <1.20, 21 для ≥1.20)
 - ✅ Управление RAM и портами
 - ✅ Автоматическая установка Java если нужно
-- ✅ Отдельная логирование и конфигурация для каждого туннеля
 
 ## 📦 Установка зависимостей
 
@@ -26,18 +25,14 @@ pip install -r requirements.txt
 
 ## 📥 Скачивание playit
 
-Загрузите playit с [playit.gg](https://playit.gg) и подготовьте две копии:
+Загрузите playit с [playit.gg](https://playit.gg) и поместите в корень проекта:
 
 ```bash
 # Скачайте playit в корень проекта
-cp ~/playit .
+cp ~/Downloads/playit .  # или откуда вы скачали
 
-# Дублируйте для сервера и VoiceChat
-cp playit playit-server
-cp playit playit-voice
-
-# Убедитесь что файлы исполняемые
-chmod +x playit playit-server playit-voice
+# Убедитесь что файл исполняемый
+chmod +x playit
 ```
 
 ## 🔧 Настройка rclone (опционально, для Google Drive)
@@ -74,26 +69,11 @@ python -m mcmanager.mcmanager
 
 ## ⚙️ Настройка playit.gg
 
-### Для сервера
-
 1. Зарегистрируйтесь на [playit.gg](https://playit.gg)
 2. Создайте агент и получите claim code
-3. В менеджере: `3) Настройки` → `7) Настройки playit.gg для сервера`
-4. Введите:
-   - `Secret key` — claim code или secret
-   - `Playit binary path` — `./playit-server` (или путь к нему)
-5. Вернитесь в главное меню и включите: `4) Использовать playit.gg для сервера`
-
-### Для VoiceChat
-
-1. Получите отдельный claim code (можно использовать другой аккаунт)
-2. В менеджере: `3) Настройки`
-3. Включите: `5) VoiceChat включён`
-4. Перейдите в: `8) Настройки playit.gg для VoiceChat`
-5. Введите:
-   - `Secret key` — отдельный claim code
-   - `Playit binary path` — `./playit-voice`
-6. Включите: `6) Использовать playit.gg для VoiceChat`
+3. В менеджере: `3) Настройки` → `5) Настройки playit.gg`
+4. Введите `Secret key` — claim code или secret
+5. Вернитесь в главное меню и включите: `4) Использовать playit.gg`
 
 ## 🎮 Создание сервера
 
@@ -132,8 +112,6 @@ mcmanager/
     java.py            # Поиск Java
     gdrive.py          # Работа с Google Drive
 playit                  # Бинарник playit (скачайте сами)
-playit-server           # Копия для сервера (скопируйте из playit)
-playit-voice            # Копия для VoiceChat (скопируйте из playit)
 start.py               # Точка входа
 README.md              # Этот файл
 requirements.txt       # Зависимости Python
@@ -148,15 +126,10 @@ requirements.txt       # Зависимости Python
   "servers_path": "~/mcservers",
   "gdrive_mount": "~/gdrive",
   "gdrive_remote": "gdrive",
-  "use_playit_server": false,
-  "playit_server_secret": "",
-  "playit_server_bin_path": "./playit-server",
-  "playit_server_log_path": "~/.mcmanager/playit_server.log",
-  "voicechat_enabled": false,
-  "use_playit_voice": false,
-  "playit_voice_secret": "",
-  "playit_voice_bin_path": "./playit-voice",
-  "playit_voice_log_path": "~/.mcmanager/playit_voice.log"
+  "use_playit": false,
+  "playit_secret": "",
+  "playit_secret_path": "~/.mcmanager/playit_secret.txt",
+  "playit_log_path": "~/.mcmanager/playit.log"
 }
 ```
 
