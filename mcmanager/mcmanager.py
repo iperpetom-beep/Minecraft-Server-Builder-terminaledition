@@ -3,6 +3,8 @@ import subprocess
 import sys
 import signal
 import psutil
+import time
+import threading
 
 from mcmanager.utils import config as cfgmod
 from mcmanager.utils import gdrive as gdrv
@@ -140,6 +142,10 @@ def select_server(cfg):
         print("Неверный выбор")
         return
     ram = input("Сколько RAM выделить (например 2G): ")
+    # Save last server and RAM
+    cfg['last_server_path'] = chosen
+    cfg['last_server_ram'] = ram
+    save_cfg(cfg)
     run_server(chosen, ram, cfg)
 
 
@@ -328,8 +334,9 @@ def settings(cfg):
     print(f"2) GDrive mount: {cfg.get('gdrive_mount')}")
     print(f"3) GDrive remote: {cfg.get('gdrive_remote')}")
     print(f"4) Использовать playit.gg: {'Да' if cfg.get('use_playit', False) else 'Нет'}")
-    print("5) Настройки playit.gg")
-    print("6) Назад")
+    print(f"5) Автозагрузка последнего сервера: {'Да' if cfg.get('auto_start_enabled', False) else 'Нет'}")
+    print("6) Настройки playit.gg")
+    print("7) Назад")
     choice = input("> ")
     if choice == "1":
         cfg['servers_path'] = input("Новый путь: ")
@@ -341,6 +348,9 @@ def settings(cfg):
         cfg['use_playit'] = not cfg.get('use_playit', False)
         print(f"playit.gg {'включен' if cfg['use_playit'] else 'выключен'}")
     elif choice == "5":
+        cfg['auto_start_enabled'] = not cfg.get('auto_start_enabled', False)
+        print(f"Автозагрузка {'включена' if cfg['auto_start_enabled'] else 'выключена'}")
+    elif choice == "6":
         playit_settings(cfg)
     save_cfg(cfg)
 
@@ -416,8 +426,71 @@ def gdrive_menu(cfg):
             print(f"Error syncing: {e}")
 
 
+def auto_start_server(cfg):
+    """Auto start the last server if enabled."""
+    if not cfg.get('auto_start_enabled', False):
+        return
+    last_server = cfg.get('last_server_path', '')
+    last_ram = cfg.get('last_server_ram', '2G')
+    if not last_server or not os.path.exists(last_server):
+        print("Последний сервер не найден, автозагрузка пропущена")
+        return
+    print(f"Автозагрузка сервера: {last_server} с RAM: {last_ram}")
+    run_server(last_server, last_ram, cfg)
+
+
 def main():
     cfg = load_cfg()
+    
+    # Check for auto start
+    if cfg.get('auto_start_enabled', False) and cfg.get('last_server_path', ''):
+        print("Автозагрузка включена. Сервер запустится через 10 секунд...")
+        print("Нажмите любую клавишу для отмены автозагрузки")
+        
+        def countdown():
+            for i in range(10, 0, -1):
+                print(f"\rАвтозагрузка через {i} секунд... (нажмите Enter для отмены)", end='', flush=True)
+                time.sleep(1)
+            print("\rЗапуск сервера...                                    ")
+            auto_start_server(cfg)
+        
+        timer_thread = threading.Thread(target=countdown)
+        timer_thread.daemon = True
+        timer_thread.start()
+        
+        try:
+            # Wait for user input or timer completion
+            user_input = input()
+            if user_input.strip():  # If user pressed Enter or typed something
+                print("Автозагрузка отменена")
+                timer_thread.join(timeout=0)  # Stop the countdown thread
+        except EOFError:
+            # No input, let the timer complete
+            timer_thread.join()
+    
+    # Main menu loop
+    while True:
+        print("\nГлавное меню")
+        print("1) Создать сервер")
+        print("2) Выбрать сервер")
+        print("3) Настройки")
+        print("4) Google Drive")
+        print("5) Выход")
+        choice = input("> ")
+        if choice == "1":
+            create_server(cfg)
+        elif choice == "2":
+            select_server(cfg)
+        elif choice == "3":
+            settings(cfg)
+        elif choice == "4":
+            gdrive_menu(cfg)
+        elif choice == "5":
+            print("Выход")
+            break
+        else:
+            print("Неверный выбор")
+    
     while True:
         print("\nГлавное меню")
         print("1) Создать сервер")

@@ -13,7 +13,10 @@ DEFAULT_CONFIG = {
     "playit_secret_path": "~/.mcmanager/playit_secret.txt",
     "playit_log_path": "~/.mcmanager/playit.log",
     "playit_stop_on_server_stop": True,
-    "playit_tunnel_type": "playit"
+    "playit_tunnel_type": "playit",
+    "auto_start_enabled": False,
+    "last_server_path": "",
+    "last_server_ram": "2G"
 }
 
 
