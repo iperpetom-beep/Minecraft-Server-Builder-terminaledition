@@ -58,15 +58,46 @@ rclone mount gdrive: ~/gdrive
 Простой способ:
 
 ```bash
-./start.py
+./start.sh
 ```
 
 Или вручную:
 
 ```bash
 source venv/bin/activate
-python -m mcmanager.mcmanager
+python -m mcmanager
 ```
+
+Если вы хотите запускать менеджер при старте системы, используйте `start.sh`. При включённой автозагрузке внутри менеджера он автоматически запустит последний сервер через 10 секунд.
+
+### Автозагрузка при старте системы
+
+Для Linux с systemd создайте файл сервиса, например `~/.config/systemd/user/mcmanager.service`:
+
+```ini
+[Unit]
+Description=Minecraft Server Manager
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Mineserver
+ExecStart=%h/Mineserver/start.sh
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+Затем выполните:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable mcmanager.service
+systemctl --user start mcmanager.service
+```
+
+Если вы хотите, чтобы сервис запускался в системной области, переместите файл в `/etc/systemd/system/` и используйте `sudo systemctl`.
 
 ## ⚙️ Настройка playit.gg
 
